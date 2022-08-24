@@ -25,13 +25,13 @@
 // SUBMISSION INSTRUCTIONS:
 // Submit this file, by itself, in a .tar.gz.
 // Other files will be ignored.
-
+//#include <iostream>
 #include <cstdint>
 #include <functional> // where std::hash lives
 #include <vector>
 #include <cassert> // useful for debugging!
-
-// A bucket's status tells you whether it's empty, occupied, 
+//using namespace std;
+// A bucket's status tells you whether it's empty, occupied,
 // or contains a deleted element.
 enum class Status : uint8_t {
     Empty,
@@ -58,7 +58,7 @@ public:
         // You can use the following to avoid implementing rehash_and_grow().
         // However, you will only pass the AG test cases ending in _C.
         // To pass the rest, start with at most 20 buckets and implement rehash_and_grow().
-        //    buckets.resize(10000);
+            buckets.resize(20);
     }
 
     size_t size() const {
@@ -66,29 +66,98 @@ public:
     }
 
     // returns a reference to the value in the bucket with the key, if it
-    // already exists. Otherwise, insert it with a default value, and return
+    // already exists. Otherwise, insert the value with a default value, and return
     // a reference to the resulting bucket.
     V& operator[](const K& key) {
-        for(size_t i=0; i<buckets.size(); i++){
-            if(buckets[i].key == key){
-                return buckets[i].value;
+        Hasher hasher;
+        if((num_elements*2 + 1) >= buckets.size()){
+            rehash_and_grow();
+        }
+        size_t target;
+        size_t firstDelete;
+        bool metDeleted = false;
+        for(size_t i = 0; i < buckets.size(); i++){
+            target = (hasher(key)+i)%buckets.size();//should wrap around!
+            if(buckets[target].status == Status::Occupied && buckets[target].key == key){
+                return buckets[target].val;
+            }
+            if(buckets[target].status == Status::Deleted && !metDeleted){
+                firstDelete = target;
+                metDeleted = true;
+            }
+            if(buckets[target].status == Status::Empty){
+                if(metDeleted){
+                    target = firstDelete;
+                }
+                buckets[target].key = key;
+                buckets[target].val = V();
+                buckets[target].status = Status::Occupied;
+                num_elements++;
+                return buckets[target].val;
             }
         }
-        Bucket temp;
-        temp.status = Status::Occupied;
-        buckets.push_back(0)
-       
-        // TODO
+        if(metDeleted){ //everything was deleted or not the right key
+            buckets[firstDelete].key = key;
+            buckets[firstDelete].val = V();
+            buckets[firstDelete].status = Status::Occupied;
+            num_elements++;
+            return buckets[firstDelete].val;
+        }
+        return buckets[target].val; //this will literally never be called
     }
 
     // insert returns whether inserted successfully
     // (if the key already exists in the table, do nothing and return false).
     bool insert(const K& key, const V& val) {
-        // TODO
+        Hasher hasher;
+        if((num_elements*2 + 1) >= buckets.size()){
+            rehash_and_grow();
+        }
+        size_t firstDelete;
+        bool metDeleted = false;
+        for(size_t i = 0; i < buckets.size(); i++){
+            size_t target = (hasher(key)+i)%buckets.size();//should wrap around!
+            if(buckets[target].status == Status::Occupied && buckets[target].key == key){
+                return false;
+            }
+            if(buckets[target].status == Status::Deleted && !metDeleted){
+                firstDelete = target;
+                metDeleted = true;
+            }
+            if(buckets[target].status == Status::Empty){
+                if(metDeleted){
+                    target = firstDelete;
+                }
+                buckets[target].key = key;
+                buckets[target].val = val;
+                buckets[target].status = Status::Occupied;
+                num_elements++;
+                return true;
+            }
+        }
+        if(metDeleted){ //everything was deleted or not the right key
+            buckets[firstDelete].key = key;
+            buckets[firstDelete].val = val;
+            buckets[firstDelete].status = Status::Occupied;
+            num_elements++;
+            return true;
+        }
+        return false;
     }
-    // erase returns the number of items remove (0 or 1)
+
     size_t erase(const K& key) {
-        // TODO
+        Hasher hasher;
+        for(size_t i=0; i<buckets.size(); i++){
+            size_t target = (hasher(key)+i)%buckets.size();
+            if(buckets[target].status == Status::Empty)
+                return 0;
+            if(buckets[target].status == Status::Occupied && buckets[target].key == key){
+                buckets[target].status = Status::Deleted;
+                num_elements--;
+                return 1;
+            }
+        }// as soon as empty, deletus
+        return 0;
     }
 
 private:
@@ -97,12 +166,21 @@ private:
     std::vector<Bucket> buckets;
 
     void rehash_and_grow() {
+        std::vector<Bucket> temp = buckets;
+        buckets.clear();
+        buckets.resize(temp.size()*2);
+        num_elements = 0;
+        
+        for(size_t i=0; i<temp.size(); i++){
+            if(temp[i].status == Status::Occupied){
+                insert(temp[i].key,temp[i].val);
+            }
+        }
         // You can avoid implementing rehash_and_grow() by calling
         //    buckets.resize(10000);
         // in the constructor. However, you will only pass the AG test cases ending in _C.
         // To pass the rest, start with at most 20 buckets and implement rehash_and_grow().
     }
-
     // You can add methods here if you like.
     // TODO
 };
